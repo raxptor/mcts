@@ -99,5 +99,5 @@ fn main() {
         random: 0xf,
         used_mega: false
     });
-    mcts.playout_n(10000);
+    mcts.playout_n(100000);
 }

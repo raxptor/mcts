@@ -60,7 +60,7 @@ impl<S:GameState> MCTS<S> where S::Move : std::fmt::Debug, S::Player : Clone {
             nodes: Vec::new(),
             tracking: HashMap::new(),
             rng: rand::thread_rng(),
-            exploration_constant: 5.0
+            exploration_constant: 10.0
         }
     }
 
