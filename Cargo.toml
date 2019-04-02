@@ -1,0 +1,13 @@
+[package]
+authors = ["Dan Nilsson <raxptor@gmail.com>"]
+name = "stmcts"
+version = "0.3.0"
+description = "This is a library for single threaded Monte Carlo tree searches"
+repository = "https://github.com/raxptor/stmcts"
+keywords = ["monte", "carlo", "tree", "search", "ai"]
+categories = ["algorithms"]
+license = "MIT"
+
+[dependencies]
+rand = "0.6.5"
+smallvec = "0.6"
