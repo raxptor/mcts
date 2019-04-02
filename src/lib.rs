@@ -25,7 +25,7 @@ pub trait GameState where Self : Clone {
     fn current_player(&self) -> Self::Player;
     fn hash(&self) -> u64;
     fn evaluate(&self) -> Self::Eval;
-    fn interpret_evaluation_for_player(&self, evaln: &Self::Eval, player: Self::Player) -> i64;
+    fn interpret_evaluation_for_player(&self, evaln: &Self::Eval, player: Self::Player) -> f64;
 }
 
 type ChildNodes = SmallVec::<[usize; 2]>;
@@ -40,7 +40,7 @@ struct Node<Move, Player> {
     hash: u64,
     moves: Option<Vec<MoveInfo<Move>>>,
     visits: u64,
-    value: i64,
+    value: f64,
     player: Player,
 }
 
@@ -52,15 +52,15 @@ pub struct MCTS<S:GameState> {
     exploration_constant: f64
 }
 
-impl<S:GameState> MCTS<S> where S::Move : std::fmt::Debug, S::Player : Clone {
+impl<S:GameState> MCTS<S> where S::Move : Clone + std::fmt::Debug, S::Player : Clone {
 
-    pub fn new(root_state:S) -> Self {
+    pub fn new(root_state:S, exploration_constant:f64) -> Self {
         MCTS {
             root_state,
             nodes: Vec::new(),
             tracking: HashMap::new(),
             rng: rand::thread_rng(),
-            exploration_constant: 10.0
+            exploration_constant: exploration_constant
         }
     }
 
@@ -72,7 +72,7 @@ impl<S:GameState> MCTS<S> where S::Move : std::fmt::Debug, S::Player : Clone {
             moves: None,
             player: self.root_state.current_player(),
             visits: 0,
-            value: 0
+            value: 0.0
         });
 
         for _ in 0..count {
@@ -83,25 +83,51 @@ impl<S:GameState> MCTS<S> where S::Move : std::fmt::Debug, S::Player : Clone {
         let k = &self.nodes[0];
         println!("visits={}", k.visits);
         println!("value ={}", k.value);
-        for m in k.moves.as_ref().unwrap() {
-            //println!("move {:?} has {} children", m.mv, m.children.len());
+        for m in k.moves.as_ref().unwrap() {            
             let mut vis = 0;
-            let mut val = 0;
+            let mut val = 0.0;
             for c in m.children.iter() {
                 vis += self.nodes[*c].visits;
                 val += self.nodes[*c].value;
             }
             //println!("   vis={}  val={}", vis, val);
             if vis > 0 {
-                println!("{}. move {:?} has value {}", vis, m.mv, val as f64 / vis as f64);
+                println!("{}. move {:?} has value {} ({} children)", vis, m.mv, val as f64 / vis as f64, m.children.len());
+                let mut vk = Vec::new();
+                self.add_best_moves(m.children[0], &mut vk);
+                println!("       path={:?}", vk);
             } else {
                 println!("{}. move {:?} was unexplored", vis, m.mv);
             }
         }
     }
 
-    fn playout(&mut self) {
-        
+    pub fn best_move(&self) -> Option<S::Move> {
+        let k = &self.nodes[0];
+        if let Some(ref moves) = k.moves {
+            let mut rng = rand::thread_rng();
+            select_by_key(&mut rng, moves.iter(), |m| {                
+                m.children.iter().map(|c| self.nodes[*c].visits).sum::<u64>() as f64
+            }).map(|best| best.mv.clone())
+        } else {
+            None
+        }
+    }
+
+    pub fn add_best_moves(&self, src:usize, output:&mut Vec<S::Move>) {
+        let k = &self.nodes[src];
+        if let Some(ref moves) = k.moves {
+            let mut rng = rand::thread_rng();
+            if let Some(best) = select_by_key(&mut rng, moves.iter(), |m| {                
+                m.children.iter().map(|c| self.nodes[*c].visits).sum::<u64>() as f64
+            }) {
+                output.push(best.mv.clone());
+                self.add_best_moves(best.children[0], output);
+            }
+        }
+    }   
+
+    fn playout(&mut self) {        
         let mut state = self.root_state.clone();
         let mut pos = 0;
         let mut unexp = SmallVec::<[usize; 32]>::new();
@@ -141,7 +167,7 @@ impl<S:GameState> MCTS<S> where S::Move : std::fmt::Debug, S::Player : Clone {
                     let mut pm = Vec::new();
                     for m in self.nodes[pos].moves.as_ref().unwrap().iter() {
                         let visits:u64 = m.children.iter().map(|x| self.nodes[*x].visits).sum();
-                        let value:i64 = m.children.iter().map(|x| self.nodes[*x].value).sum();
+                        let value:f64 = m.children.iter().map(|x| self.nodes[*x].value).sum();
                         let l = pm.len();
                         pm.push((visits, value, l));
                         total_visits += visits;
@@ -150,7 +176,7 @@ impl<S:GameState> MCTS<S> where S::Move : std::fmt::Debug, S::Player : Clone {
                     let ln_adjusted_total = adjusted_total.ln();
                     let exp = self.exploration_constant;
                     let pick = select_by_key(&mut self.rng, pm.iter(), |mov| {
-                        let sum_rewards = mov.1 as f64;
+                        let sum_rewards = mov.1;
                         let child_visits = mov.0;
                         let explore_term = 2.0 * (ln_adjusted_total / child_visits as f64).sqrt();
                         let mean_action_value = sum_rewards as f64 / child_visits as f64;
@@ -177,7 +203,7 @@ impl<S:GameState> MCTS<S> where S::Move : std::fmt::Debug, S::Player : Clone {
                     moves: None,
                     player: player,
                     visits: 0,
-                    value: 0
+                    value: 0.0
                 });
                 path.push(new_pos);
                 (new_pos, true)
