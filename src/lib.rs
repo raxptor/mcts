@@ -78,8 +78,11 @@ impl<S:GameState> MCTS<S> where S::Move : Clone + std::fmt::Debug, S::Player : C
         for _ in 0..count {
             self.playout();
         }
+    }
 
-        println!(" ======== FINISHED {} playouts ======== ", count);
+    pub fn debug_tree(&self)
+    {
+        println!(" ======== TREE DEBUG  ======== ");
         let k = &self.nodes[0];
         println!("visits={}", k.visits);
         println!("value ={}", k.value);
@@ -90,7 +93,6 @@ impl<S:GameState> MCTS<S> where S::Move : Clone + std::fmt::Debug, S::Player : C
                 vis += self.nodes[*c].visits;
                 val += self.nodes[*c].value;
             }
-            //println!("   vis={}  val={}", vis, val);
             if vis > 0 {
                 println!("{}. move {:?} has value {} ({} children)", vis, m.mv, val as f64 / vis as f64, m.children.len());
                 let mut vk = Vec::new();
